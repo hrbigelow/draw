@@ -18,3 +18,4 @@ def main(ckpt_path, img_path):
 
 if __name__ == '__main__':
     fire.Fire(main)
+

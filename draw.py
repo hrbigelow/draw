@@ -174,10 +174,6 @@ class TimeStep(layers.Layer):
 
 
 
-## DRAW MODEL ## 
-
-
-
 class Draw(tf.keras.Model):
     def __init__(self, read_attn=True, write_attn=True, **kwargs):
         super(Draw, self).__init__(**kwargs)
@@ -233,7 +229,8 @@ class Draw(tf.keras.Model):
 
 
 ## MODEL PARAMETERS ## 
-def main(data_dir, ckpt_template=None, start_step=0, 
+def main(data_dir, tboard_logdir, 
+        ckpt_template=None, start_step=0, 
         ckpt_every=1000, report_every=10, 
         read_attn=True, write_attn=True,
         learning_rate=1e-3): 
@@ -260,6 +257,8 @@ def main(data_dir, ckpt_template=None, start_step=0,
     Lxs = []
     Lzs = []
 
+    writer = tf.summary.create_file_writer(tboard_logdir)
+
     for step in range(start_step, train_iters + start_step):
         x_batch_train = next(dsit)
         with tf.GradientTape() as tape:
@@ -285,23 +284,17 @@ def main(data_dir, ckpt_template=None, start_step=0,
 
         if step % report_every == 0:
             print("iter=%d : Lx: %f Lz: %f" % (step, model.lx, model.lz))
+            tf.summary.flush(writer)
 
         if step % ckpt_every == 0 and step != start_step:
             ckpt_path = ckpt_template.replace('%', str(step))
             model.save_weights(ckpt_path)
             print("Model weights saved in file: %s" % ckpt_path)
 
-    # batch for drawing the layer reconstructions
-    x_batch = next(dsit)
-    model.record(True)
-    model(x_batch)
-    canvases = np.array(model.canvases)
-
-    out_file=os.path.join(data_dir,"draw_data.npz")
-    np.savez(out_file, canvases=canvases, Lxs=Lxs, Lzs=Lzs)
-    print("Outputs saved in file: %s" % out_file)
-
-## TRAINING FINISHED ## 
+        with writer.as_default():
+            tf.summary.scalar('lx', model.lx, step=step)
+            tf.summary.scalar('lz', model.lz, step=step)
+            tf.summary.scalar('loss', loss, step=step)
 
 
 if __name__ == '__main__':
