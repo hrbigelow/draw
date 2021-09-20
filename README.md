@@ -18,7 +18,7 @@ To generate new data using a trained model, use the weights file included in
 this repo:
 
 ```
-python gen_data.py --ckpt_path=ckpt/draw.17500.ckpt --img_path=/path/to/results/draw.17500
+python gen_data.py --ckpt_path=ckpt/run3.17500.ckpt --img_path=/path/to/results/run3.17500
 ```
 
 This will create a series of images "imagined" by the trained decoder model,
@@ -26,13 +26,13 @@ one at each timestep during the iterative generation process.  You can then
 make them into a gif with:
 
 ```bash
-$ convert -delay 10 -loop 0 draw.17500_?.png draw.17500_??.png draw.17500.gif
-$ animate draw.17500.gif
+$ convert -delay 10 -loop 0 run3.17500_?.png run3.17500_??.png run3.17500.gif
+$ animate run3.17500.gif
 ```
 
 This is the result from the `gen_data.py` command, followed by `convert`:
 
-<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run.17500.gif">
+<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run3.17500.gif">
 
 `draw.py` plots the KL loss, reconstruction loss, and the sum of the two in the
 tensorboard format.  Unfortunately, tensorboard doesn't allow viewing them in
@@ -50,9 +50,9 @@ tensorboard dev upload --logdir /path/to/tb/log
 ```
 
 Here is the result of the training run that generated the checkpoint file
-`ckpt/draw.17500.ckpt`.
+`ckpt/run3.17500.ckpt`.
 
-<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run.17500_loss.png"
+<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run3.17500_loss.png"
  width="40%">
 
 

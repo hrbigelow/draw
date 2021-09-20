@@ -12,7 +12,6 @@ def main(exp_id, run):
     df.index = mi
     cols = df.loc[:, ['value']].unstack()
 
-    plt.figure()
     cols.plot()
     plt.show()
 
