@@ -75,3 +75,4 @@ if __name__ == '__main__':
     draw_steps(prefix, canvases)
     draw_losses(prefix, Lxs, Lzs)
 
+

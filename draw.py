@@ -24,7 +24,6 @@ write_n = 5 # write glimpse grid width/height
 z_size=100 # QSampler output size
 T=64 # MNIST generation sequence length
 batch_size=100 # training minibatch size
-train_iters=10000
 eps=1e-8 # epsilon for numerical stability
 
 ## BUILD MODEL ## 
@@ -233,7 +232,8 @@ def main(data_dir, tboard_logdir,
         ckpt_template=None, start_step=0, 
         ckpt_every=1000, report_every=10, 
         read_attn=True, write_attn=True,
-        learning_rate=1e-3): 
+        learning_rate=1e-3,
+        max_steps=10000): 
     model = Draw(read_attn, write_attn)
     if start_step != 0:
         ckpt_path = ckpt_template.replace('%', str(start_step))
@@ -259,7 +259,7 @@ def main(data_dir, tboard_logdir,
 
     writer = tf.summary.create_file_writer(tboard_logdir)
 
-    for step in range(start_step, train_iters + start_step):
+    for step in range(start_step, max_steps + start_step):
         x_batch_train = next(dsit)
         with tf.GradientTape() as tape:
             model(x_batch_train)
@@ -292,9 +292,9 @@ def main(data_dir, tboard_logdir,
             print("Model weights saved in file: %s" % ckpt_path)
 
         with writer.as_default():
-            tf.summary.scalar('lx', model.lx, step=step)
-            tf.summary.scalar('lz', model.lz, step=step)
-            tf.summary.scalar('loss', loss, step=step)
+            tf.summary.scalar('loss/lx', model.lx, step=step)
+            tf.summary.scalar('loss/lz', model.lz, step=step)
+            tf.summary.scalar('loss/total', loss, step=step)
 
 
 if __name__ == '__main__':
