@@ -10,8 +10,8 @@ implementation [here](https://github.com/ericjang/draw).
 ```sh
 python draw.py --help
 python draw.py --data_dir=/path/to/data/tmp --learning_rate=5e-4 \
-   --start_step=9000 --ckpt_template=/path/to/ckpt/run2.%.ckpt \
-   --tboard_logdir=/path/to/tb/log/run2/
+   --start_step=9000 --ckpt_template=/path/to/ckpt/run3.%.ckpt \
+   --tboard_logdir=/path/to/tb/log/run3/
 ```
 
 To generate new data using a trained model, use the weights file included in
@@ -44,7 +44,7 @@ tensorboard dev upload --logdir TB_LOGDIR
 python plot_tboard.py --exp_id=EXPERIMENT_ID--run=RUN_SUBDIR
 
 # For example:
-python plot_tboard.py --exp_id=mgSAaxxyRkCQFnEzmMFaxA --run=run2
+python plot_tboard.py --exp_id=mgSAaxxyRkCQFnEzmMFaxA --run=run3
 tensorboard dev upload --logdir /path/to/tb/log
 # save the displayed plot
 ```
@@ -104,6 +104,11 @@ a Keras binary cross entropy
 as well, but it seems to *average* across the dimensions rather than sum, which
 is not what's needed here. 
 
+Another thing to note:  There is a spike in lz at step 5099 in training run 3.
+This for some reason is not visible on tensorboard.dev, because that interface
+doesn't display every timestep.  However, the data uploaded to it does include
+every timestep, and the code in `plot_tboard.py` downloads directly from
+tensorboard.dev.  I'm not sure why it is not displayed, but it is a real blip.
 
 
 
