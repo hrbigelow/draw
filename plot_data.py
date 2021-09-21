@@ -12,44 +12,51 @@ if not interactive:
 import matplotlib.pyplot as plt
 
 
-def xrecons_grid(X,B,A):
+def xrecons_grid(X):
     """
     plots canvas for single time step
-    X is x_recons, (batch_size x img_size)
-    assumes features = BxA images
+
+    assumes features = wxA images
     batch is assumed to be a square number
     """
-    padsize=1
-    padval=.5
-    ph=B+2*padsize
-    pw=A+2*padsize
-    batch_size=X.shape[0]
-    N=int(np.sqrt(batch_size))
-    X=X.reshape((N,N,B,A))
-    img=np.ones((N*ph,N*pw))*padval
-    for i in range(N):
-            for j in range(N):
-                    startr=i*ph+padsize
-                    endr=startr+B
-                    startc=j*pw+padsize
-                    endc=startc+A
-                    img[startr:endr,startc:endc]=X[i,j,:,:]
+    # num rows/cols, height, width, num channels
+    nrow, ncol, h, w, nch = tuple(X.shape)
+    padsize, padval = 1, 0.5
+    pw=w+2*padsize
+    ph=h+2*padsize
+    img=np.ones((nrow * ph, ncol * pw, nch))*padval
+    for r in range(nrow):
+        begr=r*ph+padsize
+        endr=begr+h
+        for c in range(ncol):
+            begc=c*pw+padsize
+            endc=begc+w
+            img[begr:endr,begc:endc]=X[r,c,...]
     return img
 
 def draw_steps(prefix, canvases):
-    T,batch_size,img_size = canvases.shape
+    T, batch_size, num_chan, img_size = canvases.shape
+    h = w = int(np.sqrt(img_size))
+    N = int(np.sqrt(batch_size))
     X=1.0/(1.0+np.exp(-canvases)) # x_recons=sigmoid(canvas)
-    B=A=int(np.sqrt(img_size))
+    X = np.transpose(X, (0,1,3,2))
+    X=X.reshape((T,N,N,h,w,num_chan))
     if interactive:
         f,arr=plt.subplots(1,T)
     for t in range(T):
-        img=xrecons_grid(X[t,:,:],B,A)
+        img=xrecons_grid(X[t,...])
         if interactive:
-            arr[t].matshow(img,cmap=plt.cm.gray)
+            if num_chan == 1:
+                arr[t].matshow(img,cmap=plt.cm.gray)
+            else:
+                arr[t].imshow(img)
             arr[t].set_xticks([])
             arr[t].set_yticks([])
         else:
-            plt.matshow(img,cmap=plt.cm.gray)
+            if num_chan == 1:
+                plt.matshow(img,cmap=plt.cm.gray)
+            else:
+                plt.imshow(img)
             imgname='%s_%d.png' % (prefix,t) # you can merge using imagemagick, i.e. convert -delay 10 -loop 0 *.png mnist.gif
             plt.savefig(imgname)
             print(imgname)

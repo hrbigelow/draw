@@ -8,26 +8,12 @@ import os
 import sys
 import fire
 import tensorflow as tf
+import numpy as np
 import tensorflow_datasets as tfds
-
 from tensorflow.keras import layers
 
-import numpy as np
+from hparams import setup_hparams
 
-A,B = 28,28 # image width,height
-img_size = B*A # the canvas size
-enc_size = 256 # number of hidden units / output size in LSTM
-dec_size = 256
-read_n = 2 # read glimpse grid width/height
-write_n = 5 # write glimpse grid width/height
-# read_size = 2*read_n*read_n if FLAGS.read_attn else 2*img_size
-z_size=100 # QSampler output size
-T=64 # MNIST generation sequence length
-batch_size=100 # training minibatch size
-eps=1e-8 # epsilon for numerical stability
-
-## BUILD MODEL ## 
-# x = tf.keras.Input(shape=(z_size,), batch_size=batch_size, dtype=tf.float32) 
 
 class Linear(layers.Dense):
     def __init__(self, output_dim):
@@ -36,69 +22,82 @@ class Linear(layers.Dense):
                 bias_initializer='zeros')
 
 
-def filterbank(gx, gy, sigma2, delta, N):
-    grid_i = tf.reshape(tf.cast(tf.range(N), tf.float32), [1, -1])
-    mu_x = gx + (grid_i - N / 2 - 0.5) * delta # eq 19
-    mu_y = gy + (grid_i - N / 2 - 0.5) * delta # eq 20
-    a = tf.reshape(tf.cast(tf.range(A), tf.float32), [1, 1, -1])
-    b = tf.reshape(tf.cast(tf.range(B), tf.float32), [1, 1, -1])
-    mu_x = tf.reshape(mu_x, [-1, N, 1])
-    mu_y = tf.reshape(mu_y, [-1, N, 1])
-    sigma2 = tf.reshape(sigma2, [-1, 1, 1])
-    Fx = tf.exp(-tf.square(a - mu_x) / (2*sigma2))
-    Fy = tf.exp(-tf.square(b - mu_y) / (2*sigma2)) # batch x N x B
-    # normalize, sum over A and B dims
-    Fx=Fx/tf.maximum(tf.reduce_sum(Fx,2,keepdims=True),eps)
-    Fy=Fy/tf.maximum(tf.reduce_sum(Fy,2,keepdims=True),eps)
-    return Fx,Fy
-
 
 class AttnWindow(tf.keras.layers.Layer):
-    def __init__(self):
+    def __init__(self, w, h):
         super(AttnWindow, self).__init__()
-        self.calcParams = Linear(5)
+        self.calcParams = Linear(5) # TODO fix this
+        self.w = w
+        self.h = h
+        self.eps = 1e-8
+
+    def filterbank(self, gx, gy, sigma2, delta, N):
+        grid_i = tf.reshape(tf.cast(tf.range(N), tf.float32), [1, -1])
+        mu_x = gx + (grid_i - N / 2 - 0.5) * delta # eq 19
+        mu_y = gy + (grid_i - N / 2 - 0.5) * delta # eq 20
+        a = tf.reshape(tf.cast(tf.range(self.w), tf.float32), [1, 1, -1])
+        b = tf.reshape(tf.cast(tf.range(self.h), tf.float32), [1, 1, -1])
+        mu_x = tf.reshape(mu_x, [-1, N, 1])
+        mu_y = tf.reshape(mu_y, [-1, N, 1])
+        sigma2 = tf.reshape(sigma2, [-1, 1, 1])
+        Fx = tf.exp(-tf.square(a - mu_x) / (2*sigma2))
+        Fy = tf.exp(-tf.square(b - mu_y) / (2*sigma2)) # batch x N x B
+        # normalize, sum over A and B dims
+        Fx=Fx/tf.maximum(tf.reduce_sum(Fx,2,keepdims=True),self.eps)
+        Fy=Fy/tf.maximum(tf.reduce_sum(Fy,2,keepdims=True),self.eps)
+        return Fx,Fy
+
 
     def call(self, h_dec, N):
         params = self.calcParams(h_dec)
         gx_,gy_,log_sigma2,log_delta,log_gamma=tf.split(params,5,1)
-        gx=(A+1)/2*(gx_+1)
-        gy=(B+1)/2*(gy_+1)
+        gx=(self.w+1)/2*(gx_+1)
+        gy=(self.h+1)/2*(gy_+1)
         sigma2=tf.exp(log_sigma2)
-        delta=(max(A,B)-1)/(N-1)*tf.exp(log_delta) # batch x N
-        return filterbank(gx,gy,sigma2,delta,N)+(tf.exp(log_gamma),)
+        delta=(max(self.h, self.w)-1)/(N-1)*tf.exp(log_delta) # batch x N
+        return self.filterbank(gx,gy,sigma2,delta,N)+(tf.exp(log_gamma),)
 
 
 ## READ ## 
 class ReadAttn(layers.Layer):
-    def __init__(self, do_attn=True, **kwargs):
+    def __init__(self, hps, do_attn=True, **kwargs):
         super(ReadAttn, self).__init__(**kwargs)
-        self.attn_window = AttnWindow()
+        self.attn_window = AttnWindow(hps.width, hps.height)
         self.do_attn = do_attn
+        self.w = hps.width
+        self.h = hps.height
+        self.nc = hps.num_channels
+        self.read_n = hps.read_n
 
     def call(self, x, x_hat, h_dec_prev):
+        # x, x_hat: bcp (batch, channel, pixel)
+        bs = x.shape[0]
         if not self.do_attn:
             return tf.concat([x, x_hat], 1)
 
         def filter_img(img,Fx,Fy,gamma,N):
-            Fxt=tf.transpose(Fx,perm=[0,2,1])
-            img=tf.reshape(img,[-1,B,A])
+            Fxt=tf.transpose(Fx,perm=[0,1,3,2])
+            img=tf.reshape(img,[-1, self.nc, self.h, self.w])
             glimpse=tf.matmul(Fy,tf.matmul(img,Fxt))
-            glimpse=tf.reshape(glimpse,[-1,N*N])
-            return glimpse*tf.reshape(gamma,[-1,1])
+            glimpse=tf.reshape(glimpse,[-1,self.nc,N*N])
+            return glimpse * tf.expand_dims(gamma, 1)
 
-        N=read_n
+        N=self.read_n
         Fx,Fy,gamma = self.attn_window(h_dec_prev, N)
+        Fx = tf.expand_dims(Fx, 1) # accommodate channels
+        Fy = tf.expand_dims(Fy, 1)
         x=filter_img(x,Fx,Fy,gamma,N) # batch x (read_n*read_n)
-        x_hat=filter_img(x_hat,Fx,Fy,gamma,read_n)
-        return tf.concat([x,x_hat], 1) # concat along feature axis
+        x_hat=filter_img(x_hat,Fx,Fy,gamma,self.read_n)
+        r = tf.concat([x,x_hat], 2) # concat along feature axis
+        return tf.reshape(r, [bs, -1])
 
 
 ## Q-SAMPLER (VARIATIONAL AUTOENCODER) ##
 class SampleQ(layers.Layer):
-    def __init__(self, **kwargs):
+    def __init__(self, hps, **kwargs):
         super(SampleQ, self).__init__(**kwargs)
-        self.mu = Linear(z_size)
-        self.logsigma = Linear(z_size)
+        self.mu = Linear(hps.z_size)
+        self.logsigma = Linear(hps.z_size)
 
     def call(self, h_enc, noise):
         _mu = self.mu(h_enc)
@@ -109,44 +108,55 @@ class SampleQ(layers.Layer):
 
 ## WRITER ## 
 class WriteAttn(layers.Layer):
-    def __init__(self, do_attn=True, **kwargs):
+    def __init__(self, hps, do_attn=True, **kwargs):
         super(WriteAttn, self).__init__(**kwargs)
-        write_size = write_n*write_n if do_attn else img_size
-        self.calcW = Linear(write_size)
-        self.attn_window = AttnWindow()
+        if do_attn:
+            write_size = hps.write_n*hps.write_n
+        else:
+            write_size = hps.height * hps.width
+
+        self.calcW = Linear(write_size * hps.num_channels)
+        self.attn_window = AttnWindow(hps.width, hps.height)
         self.do_attn = do_attn
+        self.hps = hps
 
     def call(self, h_dec):
         if not self.do_attn:
             return self.calcW(h_dec)
 
-        N=write_n
+        N=self.hps.write_n
         w = self.calcW(h_dec)
-        w=tf.reshape(w,[batch_size,N,N])
+        w=tf.reshape(w,[self.hps.batch_size,self.hps.num_channels,N,N])
         Fx,Fy,gamma=self.attn_window(h_dec, N)
-        Fyt=tf.transpose(Fy,perm=[0,2,1])
+        Fx = tf.expand_dims(Fx, 1) # accommodate channels
+        Fy = tf.expand_dims(Fy, 1)
+        Fyt=tf.transpose(Fy,perm=[0,1,3,2])
         wr=tf.matmul(Fyt,tf.matmul(w,Fx))
-        wr=tf.reshape(wr,[batch_size,B*A])
+        shape = [self.hps.batch_size, self.hps.num_channels, 
+                self.hps.width * self.hps.height]
+        wr=tf.reshape(wr, shape)
         #gamma=tf.tile(gamma,[1,B*A])
-        return wr*tf.reshape(1.0/gamma,[-1,1])
+        return wr * tf.expand_dims(1.0 / gamma, 1)
 
 
 
 class TimeStep(layers.Layer):
-    def __init__(self, read_attn=True, write_attn=True, **kwargs):
+    def __init__(self, hps, read_attn=True, write_attn=True, **kwargs):
         super(TimeStep, self).__init__(**kwargs)
-        self.read = ReadAttn(read_attn, name='read') 
-        self.encode = layers.LSTMCell(enc_size, name='encoder')
-        self.sample = SampleQ(name='sample')
-        self.decode = layers.LSTMCell(dec_size, name='decoder')
-        self.write = WriteAttn(write_attn, name='write')
+        self.read = ReadAttn(hps, read_attn, name='read') 
+        self.encode = layers.LSTMCell(hps.enc_size, name='encoder')
+        self.sample = SampleQ(hps, name='sample')
+        self.decode = layers.LSTMCell(hps.dec_size, name='decoder')
+        self.write = WriteAttn(hps, write_attn, name='write')
+        self.z_size = hps.z_size
 
     def call(self, x, canvas, enc_states, dec_states, h_dec):
+        bs = x.shape[0]
         x_hat = x - tf.sigmoid(canvas)
         r = self.read(x, x_hat, h_dec)
         enc_inputs = tf.concat([r, h_dec], 1)
         h_enc, enc_states = self.encode(enc_inputs, enc_states)
-        noise = tf.random.normal((batch_size, z_size), mean=0, stddev=1) 
+        noise = tf.random.normal((bs, self.z_size), mean=0, stddev=1) 
         z, mus, logsigmas, sigmas = self.sample(h_enc, noise)
         h_dec, dec_states = self.decode(z, dec_states)
         written = self.write(h_dec)
@@ -174,24 +184,28 @@ class TimeStep(layers.Layer):
 
 
 class Draw(tf.keras.Model):
-    def __init__(self, read_attn=True, write_attn=True, **kwargs):
+    def __init__(self, hps, read_attn=True, write_attn=True, **kwargs):
         super(Draw, self).__init__(**kwargs)
-        self.step = TimeStep(read_attn, write_attn, **kwargs)
+        self.step = TimeStep(hps, read_attn, write_attn, **kwargs)
         self.canvases = None
+        self.bs = hps.batch_size
+        self.nc = hps.num_channels
+        self.isz = hps.width * hps.height
+        self.zsz = hps.z_size
+        self.dsz = hps.dec_size
+        self.T = hps.T
 
     def record(self, do_record):
-        self.canvases = [None] * T if do_record else None
+        self.canvases = [None] * self.T if do_record else None
 
     def call(self, x):
-        canvas = tf.zeros((batch_size, img_size))
-        h_dec = tf.zeros((batch_size, dec_size))
-        enc_states = self.step.encode.get_initial_state(batch_size=batch_size,
-                dtype=tf.float32)
-        dec_states = self.step.decode.get_initial_state(batch_size=batch_size,
-                dtype=tf.float32) 
+        canvas = tf.zeros((self.bs, self.nc, self.isz))
+        h_dec = tf.zeros((self.bs, self.dsz))
+        enc_states = self.step.encode.get_initial_state(batch_size=self.bs, dtype=tf.float32)
+        dec_states = self.step.decode.get_initial_state(batch_size=self.bs, dtype=tf.float32) 
         kl_terms = []
 
-        for t in range(T):
+        for t in range(self.T):
             canvas, enc_states, dec_states, h_dec = \
                     self.step(x, canvas, enc_states, dec_states, h_dec)
             if isinstance(self.canvases, list):
@@ -201,16 +215,16 @@ class Draw(tf.keras.Model):
         Lz = tf.reduce_mean(kl)
         self.lz = Lz
         xent_terms = tf.nn.sigmoid_cross_entropy_with_logits(labels=x, logits=canvas)
-        xent = tf.reduce_sum(xent_terms, axis=1)
+        xent = tf.reduce_sum(xent_terms, axis=[1,2])
         self.lx = tf.reduce_mean(xent, 0)
 
 
     def generate(self):
-        canvas = tf.zeros((batch_size, img_size))
-        dec_states = self.step.decode.get_initial_state(batch_size=batch_size,
+        canvas = tf.zeros((self.bs, self.nc, self.isz))
+        dec_states = self.step.decode.get_initial_state(batch_size=self.bs,
                 dtype=tf.float32) 
-        for t in range(T):
-            z = tf.random.normal((batch_size, z_size))
+        for t in range(self.T):
+            z = tf.random.normal((self.bs, self.zsz))
             canvas, dec_states = self.step.generate(canvas, z, dec_states)
             if isinstance(self.canvases, list):
                 self.canvases[t] = canvas
@@ -228,24 +242,43 @@ class Draw(tf.keras.Model):
 
 
 ## MODEL PARAMETERS ## 
-def main(data_dir, tboard_logdir, 
+def main(dataset, data_dir, hps, tboard_logdir, 
         ckpt_template=None, start_step=0, 
         ckpt_every=1000, report_every=10, 
         read_attn=True, write_attn=True,
         learning_rate=1e-3,
-        max_steps=10000): 
-    model = Draw(read_attn, write_attn)
+        max_steps=10000, **kwargs): 
+
+    hps = setup_hparams(hps, kwargs)
+    model = Draw(hps, read_attn, write_attn)
     if start_step != 0:
         ckpt_path = ckpt_template.replace('%', str(start_step))
         model.load_weights(ckpt_path)
 
     @tf.autograph.experimental.do_not_convert
-    def map_fn(item):
-        return tf.cast(tf.reshape(item['image'], (784,)), tf.float32)
+    def mnist_map_fn(item):
+        img = item['image']
+        img = tf.reshape(img, (1, 784))
+        img = tf.cast(img, tf.float32)
+        return img
 
-    ds = tfds.load('binarized_mnist', split='train', data_dir=data_dir)
-    ds = ds.map(map_fn)
-    ds = ds.shuffle(buffer_size=1024).batch(batch_size)
+    def cifar_map_fn(item):
+        img = item['image']
+        img = tf.transpose(img, [2, 0, 1]) # move the channels dim in front
+        img = tf.reshape(img, (3, 1024))
+        img = tf.cast(img, tf.float32)
+        img = img / 255.0
+        return img
+
+    if dataset == 'mnist':
+        ds = tfds.load('binarized_mnist', split='train', data_dir=data_dir)
+        ds = ds.map(mnist_map_fn)
+
+    elif dataset == 'cifar10':
+        ds = tfds.load('cifar10', split='train', data_dir=data_dir)
+        ds = ds.map(cifar_map_fn)
+
+    ds = ds.shuffle(buffer_size=1024).batch(hps.batch_size)
     ds = ds.repeat()
     dsit = iter(ds)
 
@@ -253,10 +286,6 @@ def main(data_dir, tboard_logdir,
             beta_1=0.5)
 
     # model.compile(optimizer=opt)
-    canvases = []
-    Lxs = []
-    Lzs = []
-
     writer = tf.summary.create_file_writer(tboard_logdir)
 
     for step in range(start_step, max_steps + start_step):
@@ -279,8 +308,6 @@ def main(data_dir, tboard_logdir,
             print('\n\n')
 
         opt.apply_gradients(zip(grads, model.trainable_weights))
-        Lxs.append(model.lx)
-        Lzs.append(model.lz)
 
         if step % report_every == 0:
             print("iter=%d : Lx: %f Lz: %f" % (step, model.lx, model.lz))
