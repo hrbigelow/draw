@@ -2,15 +2,23 @@
 
 This is a TF v2.6 implementation of the Deep Recurrent Attentive Writer from
 https://arxiv.org/pdf/1502.04623.pdf.  It is based on Eric Jang's
-implementation [here](https://github.com/ericjang/draw).
+implementation [here](https://github.com/ericjang/draw), but written in TF
+v2.6, and upgraded to allow training on CIFAR10 color images.
 
 ## Usage
 
 
 ```sh
 python draw.py --help
-python draw.py --data_dir=/path/to/data/tmp --learning_rate=5e-4 \
-   --start_step=9000 --ckpt_template=/path/to/ckpt/run3.%.ckpt \
+
+# MNIST training
+python draw.py --hps='mnist' --data_dir=/path/to/data/tmp \
+   --ckpt_template=/path/to/ckpt/run3.%.ckpt \
+   --tboard_logdir=/path/to/tb/log/run3/
+
+# CIFAR10 training
+python draw.py --hps='cifar' --data_dir=/path/to/data/tmp \
+   --ckpt_template=/path/to/ckpt/run3.%.ckpt \
    --tboard_logdir=/path/to/tb/log/run3/
 ```
 
@@ -18,7 +26,12 @@ To generate new data using a trained model, use the weights file included in
 this repo:
 
 ```
-python gen_data.py --ckpt_path=ckpt/run3.17500.ckpt --img_path=/path/to/results/run3.17500
+# nrow * ncol must equal batch_size
+python gen_data.py --hps='mnist' --ckpt_path=ckpt/run3.17500.ckpt \
+    --img_path=/path/to/results/run3.17500 --nrow=10 --ncol=10
+
+python gen_data.py --hps='mnist' --ckpt_path=ckpt/cifar.run2.9500.ckpt \
+    --img_path=/path/to/results/cifar.run2 --nrow=10 --ncol=20
 ```
 
 This will create a series of images "imagined" by the trained decoder model,
@@ -26,13 +39,13 @@ one at each timestep during the iterative generation process.  You can then
 make them into a gif with:
 
 ```bash
-$ convert -delay 10 -loop 0 run3.17500_?.png run3.17500_??.png run3.17500.gif
-$ animate run3.17500.gif
+convert -delay 10 -loop 0 run3.17500_?.png run3.17500_??.png run3.17500.gif
+animate run3.17500.gif
 ```
 
-`draw.py` records the KL loss, reconstruction loss, and the sum of the two in the
-tensorboard format.  Unfortunately, tensorboard doesn't allow viewing them in
-one plot, but you can generate such a plot using the following:
+`draw.py` records the KL loss, "reconstruction loss", and the sum of the two in
+the tensorboard format.  Unfortunately, tensorboard doesn't allow viewing them
+in one plot, but you can generate such a plot using the following:
 
 ```bash
 # first sign in to https://tensorboard.dev
