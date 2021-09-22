@@ -30,7 +30,7 @@ this repo:
 python gen_data.py --hps='mnist' --ckpt_path=ckpt/run3.17500.ckpt \
     --img_path=/path/to/results/run3.17500 --nrow=10 --ncol=10
 
-python gen_data.py --hps='mnist' --ckpt_path=ckpt/cifar.run2.9500.ckpt \
+python gen_data.py --hps='cifar' --ckpt_path=ckpt/cifar.run2.9500.ckpt \
     --img_path=/path/to/results/cifar.run2 --nrow=10 --ncol=20
 ```
 
