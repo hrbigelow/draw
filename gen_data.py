@@ -6,7 +6,7 @@ from hparams import setup_hparams
 import sys
 import fire
 
-def main(hps, ckpt_path, img_path, **kwargs):
+def main(hps, ckpt_path, img_path, nrow, ncol, **kwargs):
     hps = setup_hparams(hps, kwargs)
     model = Draw(hps)
     model.load_weights(ckpt_path)
@@ -16,7 +16,7 @@ def main(hps, ckpt_path, img_path, **kwargs):
     x = model.generate()
     canvases = np.array(model.canvases)
 
-    draw_steps(img_path, canvases)
+    draw_steps(img_path, nrow, ncol, canvases)
 
 if __name__ == '__main__':
     fire.Fire(main)

@@ -33,6 +33,8 @@ $ animate run3.17500.gif
 This is the result from the `gen_data.py` command, followed by `convert`:
 
 <img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run3.17500.gif">
+<img
+src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/cifar.gif">
 
 `draw.py` plots the KL loss, reconstruction loss, and the sum of the two in the
 tensorboard format.  Unfortunately, tensorboard doesn't allow viewing them in
@@ -54,6 +56,8 @@ Here is the result of the training run that generated the checkpoint file
 
 <img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run3.17500_loss.png"
  width="40%">
+<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/cifar.run2_loss.png" width="40%">
+<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/cifar.run2_loss_zoom.png" width="40%">
 
 
 ## Discussion

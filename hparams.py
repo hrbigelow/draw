@@ -37,6 +37,7 @@ def setup_hparams(hparam_set_names, kwargs):
 
 
 mnist = Hyperparams(
+        dataset = 'binarized_mnist',
         height = 28,
         width = 28,
         enc_size = 256,
@@ -47,11 +48,13 @@ mnist = Hyperparams(
         z_size = 100,
         T = 64,
         batch_size = 100,
+        max_steps = 100000,
         eps = 1e-8
 )
 
 
 cifar10 = Hyperparams(
+        dataset = 'cifar10',
         height = 32,
         width = 32,
         img_size = 900,
@@ -62,7 +65,8 @@ cifar10 = Hyperparams(
         write_n = 5,
         z_size = 200,
         T = 64,
-        batch_size = 100,
+        batch_size = 200,
+        max_steps = 100000,
         eps = 1e-8
 )
 

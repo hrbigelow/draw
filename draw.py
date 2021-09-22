@@ -6,6 +6,7 @@ Adapted from Eric Jang's implementation from 2016, upgraded to TF2
 
 import os
 import sys
+import pprint
 import fire
 import tensorflow as tf
 import numpy as np
@@ -242,14 +243,16 @@ class Draw(tf.keras.Model):
 
 
 ## MODEL PARAMETERS ## 
-def main(dataset, data_dir, hps, tboard_logdir, 
+def main(data_dir, hps, tboard_logdir, 
         ckpt_template=None, start_step=0, 
         ckpt_every=1000, report_every=10, 
         read_attn=True, write_attn=True,
-        learning_rate=1e-3,
-        max_steps=10000, **kwargs): 
+        learning_rate=1e-3, **kwargs): 
 
     hps = setup_hparams(hps, kwargs)
+    print('Parameters: ')
+    pp = pprint.PrettyPrinter(indent=4)
+    pp.pprint(hps)
     model = Draw(hps, read_attn, write_attn)
     if start_step != 0:
         ckpt_path = ckpt_template.replace('%', str(start_step))
@@ -270,12 +273,11 @@ def main(dataset, data_dir, hps, tboard_logdir,
         img = img / 255.0
         return img
 
-    if dataset == 'mnist':
-        ds = tfds.load('binarized_mnist', split='train', data_dir=data_dir)
+    ds = tfds.load(hps.dataset, split='train', data_dir=data_dir)
+    if hps.dataset == 'binarized_mnist':
         ds = ds.map(mnist_map_fn)
 
-    elif dataset == 'cifar10':
-        ds = tfds.load('cifar10', split='train', data_dir=data_dir)
+    elif hps.dataset == 'cifar10':
         ds = ds.map(cifar_map_fn)
 
     ds = ds.shuffle(buffer_size=1024).batch(hps.batch_size)
@@ -288,7 +290,7 @@ def main(dataset, data_dir, hps, tboard_logdir,
     # model.compile(optimizer=opt)
     writer = tf.summary.create_file_writer(tboard_logdir)
 
-    for step in range(start_step, max_steps + start_step):
+    for step in range(start_step, hps.max_steps + start_step):
         x_batch_train = next(dsit)
         with tf.GradientTape() as tape:
             model(x_batch_train)
