@@ -50,11 +50,11 @@ in one plot, but you can generate such a plot using the following:
 ```bash
 # first sign in to https://tensorboard.dev
 tensorboard dev upload --logdir TB_LOGDIR
-python plot_tboard.py --exp_id=EXPERIMENT_ID--run=RUN_SUBDIR
+python plot_tboard.py --exp_id=EXPERIMENT_ID --run=RUN_SUBDIR
 
 # For example:
-python plot_tboard.py --exp_id=mgSAaxxyRkCQFnEzmMFaxA --run=run3
 tensorboard dev upload --logdir /path/to/tb/log
+python plot_tboard.py --exp_id=mgSAaxxyRkCQFnEzmMFaxA --run=run3
 # save the displayed plot
 ```
 
@@ -91,7 +91,7 @@ is a separate binomial sampling.
 ## Discussion
 
 Tensorboard runs are available 
-[here](https://tensorboard.dev/experiment/mgSAaxxyRkCQFnEzmMFaxA/#scalars).
+[here](https://tensorboard.dev/experiment/l83c7ncKSM6bWwipuVLZjg/#scalars).
 In run1, the latent space "collapsed", and loss/lz went to zero.
 This was not repeatable for the next several trial training runs, even though
 they all used the same hyperparameters.
