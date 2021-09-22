@@ -30,13 +30,7 @@ $ convert -delay 10 -loop 0 run3.17500_?.png run3.17500_??.png run3.17500.gif
 $ animate run3.17500.gif
 ```
 
-This is the result from the `gen_data.py` command, followed by `convert`:
-
-<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run3.17500.gif">
-<img
-src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/cifar.gif">
-
-`draw.py` plots the KL loss, reconstruction loss, and the sum of the two in the
+`draw.py` records the KL loss, reconstruction loss, and the sum of the two in the
 tensorboard format.  Unfortunately, tensorboard doesn't allow viewing them in
 one plot, but you can generate such a plot using the following:
 
@@ -51,14 +45,35 @@ tensorboard dev upload --logdir /path/to/tb/log
 # save the displayed plot
 ```
 
-Here is the result of the training run that generated the checkpoint file
-`ckpt/run3.17500.ckpt`.
+Here is a result on the binarized MNIST data.  The trained model is in
+`ckpt/run3.17500.ckpt`
+<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run3.17500.gif">
+<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run3.17500_loss.png" width="40%">
 
-<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/run3.17500_loss.png"
- width="40%">
+The animated MNIST gif shows 100 images sampled from the decoder, each timestep
+of the gif corresponding to one of the 64 timesteps during the decoder's
+progressive generation of the images.  No actual MNIST digits are used in any
+part of this generation process, and the process does not use the encoder at
+all.
+
+During training this model, one thing that is apparent is that the Lz loss term
+initially goes down at the beginning of training, but then starts to climb.
+The gain in Lz is more than compensated by a loss of Lx, resulting in the total
+loss going down.  Loosely speaking, from an information theoretic point of
+view, the quantity Lz goes up as the mutual information I(X;Z) increases.  This
+is appropriate as the encoder learns to convey enough information to the
+decoder in order to maximize log likelihood.
+
+Here is a result on CIFAR10 data.  The trained model is in `ckpt/cifar.run2.9500.ckpt`.
+<img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/cifar.gif">
 <img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/cifar.run2_loss.png" width="40%">
 <img src="https://raw.githubusercontent.com/hrbigelow/draw/master/results/cifar.run2_loss_zoom.png" width="40%">
 
+A similar phenomenon during training is observed here, except that the CIFAR
+images are 32 x 32 and 3 channels, and so represent more than 3x the
+information contained in MNIST images.  As described in the paper, image
+generation is performed in the same way except that each channel of each pixel
+is a separate binomial sampling.
 
 ## Discussion
 
